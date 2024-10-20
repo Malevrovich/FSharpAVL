@@ -4,6 +4,7 @@ open System
 
 open Xunit
 open AVL
+open System.Collections.Generic
 
 [<Fact>]
 let ``My test`` () = Assert.True(true)
@@ -19,4 +20,14 @@ let ``AccessTest`` () =
         |> AVLTree.add 3 6
         |> AVLTree.tryGet 5 =
             Some 10
+    )
+
+[<Fact>]
+let ``EnumerateTest`` () =
+    Assert.True(
+        Seq.ofList [ 0..4 ]
+        |> Seq.fold (fun tree el -> tree |> AVLTree.add el el) AVLTree.empty
+        |> Seq.map (fun (k, v) -> k)
+        |> List.ofSeq =
+            [ 0..4 ]
     )
