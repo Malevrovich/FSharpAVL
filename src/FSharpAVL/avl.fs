@@ -156,7 +156,7 @@ type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Va
 
     member _.Add (k: 'Key) v = AVLTree(insert k v root)
 
-    member _.dump = dumpTree root
+    member _.Dump = dumpTree root
 
 module AVLTree =
 
