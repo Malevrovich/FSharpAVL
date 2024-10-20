@@ -4,7 +4,7 @@ open System.Collections.Generic
 open System.Collections
 
 type private Vertex<'K, 'V> =
-    | Node of int * int * 'K * 'V * Vertex<'K, 'V> * Vertex<'K, 'V>
+    | Node of int * int * 'K * 'V * Vertex<'K, 'V> * Vertex<'K, 'V> // count, height, key, value, l-child, r-child
     | Nil
 
 let private height node =
@@ -86,6 +86,16 @@ let rec private treeSeq tree =
         | Nil -> ()
     }
 
+let rec private treeSeqBack tree =
+    seq {
+        match tree with
+        | Node(_, _, k, v, l, r) ->
+            yield! treeSeqBack r
+            yield k, v
+            yield! treeSeqBack l
+        | Nil -> ()
+    }
+
 let private dumpTree v =
     let rec dumpDepth h =
         match h with
@@ -107,11 +117,28 @@ let private dumpTree v =
             printfn "* %A" k
         | Nil -> printfn "Nil"
 
-
     dumpTreeHelp v 0
+
+let rec private map node f =
+    match node with
+    | Node(_, _, k, v, l, r) -> createVertex k (f v) (map l f) (map r f)
+    | Nil -> Nil
+
 
 type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Value>) =
     public new() = AVLTree(Nil)
+
+    member _.Height = height root
+
+    member _.TryGet = tryGet root
+
+    member _.Add (k: 'Key) v = AVLTree(insert k v root)
+
+    member _.Dump = dumpTree root
+
+    member _.Map f = AVLTree(map root f)
+
+    member _.BackSeq = treeSeqBack root
 
     member this.Item
         with get (k: 'Key): 'Value = tryGet root k |> Option.get
@@ -141,8 +168,6 @@ type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Va
             (treeSeq root |> Seq.map (fun (k, v) -> KeyValuePair(k, v)) :> IEnumerable<KeyValuePair<'Key, 'Value>>)
                 .GetEnumerator()
 
-
-
     interface IEnumerable with
         member _.GetEnumerator() =
             (treeSeq root).GetEnumerator() :> IEnumerator
@@ -150,19 +175,25 @@ type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Va
     interface IEnumerable<'Key * 'Value> with
         member _.GetEnumerator() = (treeSeq root).GetEnumerator()
 
-    member _.Height = height root
-
-    member _.TryGet = tryGet root
-
-    member _.Add (k: 'Key) v = AVLTree(insert k v root)
-
-    member _.Dump = dumpTree root
-
 module AVLTree =
+    [<GeneralizableValue>]
+    let empty<'K, 'V when 'K: comparison> : AVLTree<'K, 'V> = AVLTree<'K, 'V>()
 
     let add k v (tree: AVLTree<'K, 'V>) = tree.Add k v
 
+    let map f (tree: AVLTree<'K, 'V>) = tree.Map f
+
+    let ofItems (items: IEnumerable<'K * 'V>) =
+        items |> Seq.fold (fun tree (k, v) -> tree |> add k v) empty
+
+    let merge (lhs: AVLTree<'K, 'V>) (rhs: AVLTree<'K, 'V>) =
+        lhs |> Seq.fold (fun tree (k, v) -> tree |> add k v) rhs
+
+    let filter pred (tree: AVLTree<'K, 'V>) = tree |> Seq.filter pred |> ofItems
+
+    let fold f state (tree: AVLTree<'K, 'V>) = tree |> Seq.fold f state
+    let foldBack f state (tree: AVLTree<'K, 'V>) = tree.BackSeq |> Seq.fold f state
+
     let tryGet k (tree: AVLTree<'K, 'V>) = tree.TryGet k
 
-    [<GeneralizableValue>]
-    let empty<'K, 'V when 'K: comparison> : AVLTree<'K, 'V> = AVLTree<'K, 'V>()
+    let dump (tree: AVLTree<'K, 'V>) = tree.Dump
