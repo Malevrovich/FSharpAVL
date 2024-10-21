@@ -92,7 +92,6 @@ let ``Element not found`` () =
 
     Assert.True(
         init
-        |> Seq.map (fun (k, v) -> (k + 10000, v))
-        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = None)
+        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet (k + 10000) = None)
         |> Seq.reduce (&&)
     )
