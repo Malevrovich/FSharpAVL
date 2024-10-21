@@ -53,3 +53,46 @@ let ``Storage test`` () =
         |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = Some v)
         |> Seq.reduce (&&)
     )
+
+[<Fact>]
+let ``Merge test`` () =
+    let init = Seq.initInfinite (fun i -> i, i * i) |> Seq.take 10000
+
+    let oddTree =
+        init |> Seq.filter (fun (k, v) -> k % 2 = 1) |> shuffle |> AVLTree.ofItems
+
+    let evenTree =
+        init |> Seq.filter (fun (k, v) -> k % 2 = 0) |> shuffle |> AVLTree.ofItems
+
+    let tree = AVLTree.merge oddTree evenTree
+
+    Assert.True(
+        init
+        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = Some v)
+        |> Seq.reduce (&&)
+    )
+
+[<Fact>]
+let ``Merge empty test`` () =
+    let tree = AVLTree.ofItems (List.zip [ 0..5 ] [ 0..5 ])
+
+    Assert.True(Seq.compareWith (fun x y -> if x = y then 0 else -1) tree (AVLTree.merge tree AVLTree.empty) = 0)
+    Assert.True(Seq.compareWith (fun x y -> if x = y then 0 else -1) tree (AVLTree.merge AVLTree.empty tree) = 0)
+
+[<Fact>]
+let ``Element not found`` () =
+    let init = Seq.initInfinite (fun i -> i, i * i) |> Seq.take 10000
+    let tree = init |> shuffle |> AVLTree.ofItems
+
+    Assert.True(
+        init
+        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = Some v)
+        |> Seq.reduce (&&)
+    )
+
+    Assert.True(
+        init
+        |> Seq.map (fun (k, v) -> (k + 10000, v))
+        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = None)
+        |> Seq.reduce (&&)
+    )
