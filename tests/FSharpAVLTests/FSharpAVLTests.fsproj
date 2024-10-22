@@ -8,6 +8,8 @@
     <Compile Include="Tests.fs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="FsCheck" Version="3.0.0-rc3" />
+    <PackageReference Include="FsCheck.Xunit" Version="3.0.0-rc3" />
     <PackageReference Include="FsUnit" Version="6.0.1" />
     <PackageReference Include="FsUnit.XUnit" Version="6.0.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />

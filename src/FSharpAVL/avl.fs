@@ -50,15 +50,15 @@ let private balance node =
 
     match node with
     | Node(_, _, _, _, l, r) when diff node <= -2 ->
-        if diff r = 1 then //
-            bigRotateLeft node
-        else
+        if diff r = -1 then //
             rotateLeft node
+        else
+            bigRotateLeft node
     | Node(_, _, _, _, l, r) when diff node >= 2 ->
         if diff l = 1 then //
-            bigRotateRight node
-        else
             rotateRight node
+        else
+            bigRotateRight node
     | v -> v
 
 let rec private insert k v node =
@@ -96,33 +96,33 @@ let rec private treeSeqBack tree =
         | Nil -> ()
     }
 
-let private dumpTree v =
-    let rec dumpDepth h =
-        match h with
-        | h when h <= 0 -> ()
-        | _ ->
-            printf "-"
-            dumpDepth (h - 1)
-
-    let rec dumpTreeHelp v d =
-        dumpDepth d
-
-        match v with
+let private dumpTree node =
+    let rec dumpTreeHelp node parent x =
+        match node with
         | Node(c, h, k, v, l, r) ->
-            printfn "%A: %A" k v
-            dumpTreeHelp l (d + 1)
-            dumpTreeHelp r (d + 1)
+            printfn "%d [label = \"%A:%A\"];" x k v
 
-            dumpDepth d
-            printfn "* %A" k
-        | Nil -> printfn "Nil"
+            match parent with
+            | Some p -> printfn "%d -> %d;" p x
+            | None -> ()
 
-    dumpTreeHelp v 0
+            let res = dumpTreeHelp l (Some x) (x + 1)
+            dumpTreeHelp r (Some x) (res + 1)
+        | Nil -> x
+
+    printfn "digraph {"
+    ignore <| dumpTreeHelp node None 0
+    printfn "}"
 
 let rec private map node f =
     match node with
     | Node(_, _, k, v, l, r) -> createVertex k (f v) (map l f) (map r f)
     | Nil -> Nil
+
+let rec private maxDiff node =
+    match node with
+    | Node(_, _, k, v, l, r) -> max (diff node) (max (maxDiff l) (maxDiff r))
+    | Nil -> 0
 
 
 type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Value>) =
@@ -139,6 +139,8 @@ type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Va
     member _.Map f = AVLTree(map root f)
 
     member _.BackSeq = treeSeqBack root
+
+    member _.MaxDiff = maxDiff root
 
     member this.Item
         with get (k: 'Key): 'Value = tryGet root k |> Option.get
