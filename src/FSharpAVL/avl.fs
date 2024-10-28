@@ -2,6 +2,7 @@ module AVL
 
 open System.Collections.Generic
 open System.Collections
+open System
 
 type private Vertex<'K, 'V> =
     | Node of int * int * 'K * 'V * Vertex<'K, 'V> * Vertex<'K, 'V> // count, height, key, value, l-child, r-child
@@ -69,6 +70,32 @@ let rec private insert k v node =
         createVertex k' v' l r |> balance
     | Nil -> createVertex k v Nil Nil
 
+let rec private remove k node =
+    let rec extractLeast node =
+        match node with
+        | Node(_, _, k, v, Nil, r) -> r, k, v
+        | Node(_, _, k, v, l, r) ->
+            let remainder, leastK, leastV = extractLeast l
+            createVertex k v remainder r, leastK, leastV
+        | Nil -> raise (System.ArgumentNullException())
+
+    let deleteRoot node =
+        match node with
+        | Node(_, _, _, _, Nil, Nil) -> Nil
+        | Node(_, _, _, _, Nil, r) -> r
+        | Node(_, _, _, _, l, Nil) -> l
+        | Node(_, _, _, _, l, r) ->
+            let remainder, leastK, leastV = extractLeast r
+            createVertex leastK leastV l remainder
+        | Nil -> raise (System.ArgumentNullException())
+
+    match node with
+    | Node(_, _, k', v', l', r') when k' = k -> deleteRoot node |> balance
+    | Node(_, _, k', v', l', r') ->
+        let l, r = if k < k' then remove k l', r' else l', remove k r'
+        createVertex k' v' l r |> balance
+    | Nil -> Nil
+
 let rec private tryGet node k =
     match node with
     | Node(_, _, k', v', _, _) when k = k' -> Some v'
@@ -124,8 +151,7 @@ let rec private maxDiff node =
     | Node(_, _, k, v, l, r) -> max (diff node) (max (maxDiff l) (maxDiff r))
     | Nil -> 0
 
-
-type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Value>) =
+type AVLTree<'Key, 'Value when 'Key: comparison and 'Value: equality> private (root: Vertex<'Key, 'Value>) =
     public new() = AVLTree(Nil)
 
     member _.Height = height root
@@ -133,6 +159,7 @@ type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Va
     member _.TryGet = tryGet root
 
     member _.Add (k: 'Key) v = AVLTree(insert k v root)
+    member _.Remove(k: 'Key) = AVLTree(remove k root)
 
     member _.Dump = dumpTree root
 
@@ -177,11 +204,27 @@ type AVLTree<'Key, 'Value when 'Key: comparison> private (root: Vertex<'Key, 'Va
     interface IEnumerable<'Key * 'Value> with
         member _.GetEnumerator() = (treeSeq root).GetEnumerator()
 
+    override this.Equals(other: obj) =
+        if other :? AVLTree<'Key, 'Value> then
+            Seq.zip this (other :?> AVLTree<'Key, 'Value>)
+            |> Seq.map (fun (kv1, kv2) -> kv1 = kv2)
+            |> Seq.fold (&&) true
+        else
+            false
+
+    override this.GetHashCode() : int =
+        this
+        |> Seq.fold (fun res (k, v) -> HashCode.Combine(res, k.GetHashCode(), v.GetHashCode)) 0
+
+
 module AVLTree =
     [<GeneralizableValue>]
-    let empty<'K, 'V when 'K: comparison> : AVLTree<'K, 'V> = AVLTree<'K, 'V>()
+    let empty<'K, 'V when 'K: comparison and 'V: equality> : AVLTree<'K, 'V> =
+        AVLTree<'K, 'V>()
 
     let add k v (tree: AVLTree<'K, 'V>) = tree.Add k v
+
+    let remove k (tree: AVLTree<'K, 'V>) = tree.Remove k
 
     let map f (tree: AVLTree<'K, 'V>) = tree.Map f
 

@@ -51,11 +51,19 @@ let ``Storage test`` () =
 
     Assert.True([ -1; 0; 1 ] |> List.contains tree.MaxDiff)
 
-    Assert.True(
-        init
-        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = Some v)
-        |> Seq.reduce (&&)
-    )
+    init |> Seq.map (fun (k, v) -> Assert.Equal(tree |> AVLTree.tryGet k, Some v))
+
+[<Fact>]
+let ``Equals test`` () =
+    let init = Seq.initInfinite (fun i -> i, i * i) |> Seq.take 10000
+    let l = init |> AVLTree.ofItems
+    let r = init |> AVLTree.ofItems
+
+    Assert.True((l = r))
+
+    let x = init |> Seq.skip 1 |> AVLTree.ofItems
+    Assert.False((l = x))
+    Assert.False((x = r))
 
 [<Fact>]
 let ``Merge test`` () =
@@ -69,44 +77,81 @@ let ``Merge test`` () =
 
     let tree = AVLTree.merge oddTree evenTree
 
-    Assert.True(
-        init
-        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = Some v)
-        |> Seq.reduce (&&)
-    )
+    init |> Seq.map (fun (k, v) -> Assert.Equal(tree |> AVLTree.tryGet k, Some v))
 
 [<Fact>]
 let ``Merge empty test`` () =
     let tree = AVLTree.ofItems (List.zip [ 0..5 ] [ 0..5 ])
 
-    Assert.True(Seq.compareWith (fun x y -> if x = y then 0 else -1) tree (AVLTree.merge tree AVLTree.empty) = 0)
-    Assert.True(Seq.compareWith (fun x y -> if x = y then 0 else -1) tree (AVLTree.merge AVLTree.empty tree) = 0)
+    Assert.True((tree = (AVLTree.merge tree AVLTree.empty)))
+    Assert.True((tree = (AVLTree.merge AVLTree.empty tree)))
 
 [<Fact>]
 let ``Element not found`` () =
     let init = Seq.initInfinite (fun i -> i, i * i) |> Seq.take 10000
     let tree = init |> shuffle |> AVLTree.ofItems
 
-    Assert.True(
-        init
-        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet k = Some v)
-        |> Seq.reduce (&&)
-    )
+    init |> Seq.iter (fun (k, v) -> Assert.Equal(tree |> AVLTree.tryGet k, Some v))
 
-    Assert.True(
-        init
-        |> Seq.map (fun (k, v) -> tree |> AVLTree.tryGet (k + 10000) = None)
-        |> Seq.reduce (&&)
-    )
+    init
+    |> Seq.iter (fun (k, v) -> Assert.Equal(tree |> AVLTree.tryGet (k + 10000), None))
+
+[<Fact>]
+let ``Element not found after remove`` () =
+    let init = Seq.initInfinite (fun i -> i, i * i) |> Seq.take 10000
+    let tree = init |> shuffle |> AVLTree.ofItems
+
+
+    init |> Seq.iter (fun (k, v) -> Assert.Equal(tree |> AVLTree.tryGet k, Some v))
+
+    let remainder = tree |> AVLTree.remove 500
+
+    init
+    |> Seq.iter (fun (k, v) -> Assert.Equal(remainder |> AVLTree.tryGet k, if k = 500 then None else Some v))
 
 
 [<Property>]
-let ``Diff is always -1, 0, 1`` (l: int list) =
+let ``Storage property`` (l: string list) =
+    let tree = l |> List.map (fun x -> x.GetHashCode()) |> List.zip l |> AVLTree.ofItems
+
+    l
+    |> Seq.iter (fun k -> Assert.Equal(tree |> AVLTree.tryGet k, Some(k.GetHashCode())))
+
+[<Property>]
+let ``Remove property`` (l: int list) =
+    let tree = List.zip l l |> AVLTree.ofItems
+
+    let evenTree =
+        tree
+        |> AVLTree.fold (fun tree (k, v) -> if k % 2 = 0 then tree else tree |> AVLTree.remove k) tree
+
+    l
+    |> Seq.iter (fun k -> Assert.Equal(evenTree |> AVLTree.tryGet k, if k % 2 = 0 then Some k else None))
+
+[<Property>]
+let ``Diff is -1, 0, 1 after creation`` (l: int list) =
     let tree = List.zip l l |> AVLTree.ofItems
 
     [ -1; 0; 1 ] |> List.contains tree.MaxDiff
 
-let cmp x y = if x = y then 0 else -1
+[<Property>]
+let ``Diff is -1, 0, 1 after remove`` (l: int list) =
+    let tree = List.zip l l |> AVLTree.ofItems
+
+    [ -1; 0; 1 ]
+    |> List.contains
+        (tree
+         |> AVLTree.fold (fun tree (k, v) -> if k % 2 = 0 then tree else tree |> AVLTree.remove k) tree)
+            .MaxDiff
+
+[<Property>]
+let ``Merge property`` (l: int list, r: int list) =
+    let lTree = List.zip l l |> AVLTree.ofItems
+    let rTree = List.zip r r |> AVLTree.ofItems
+
+    let lrTree = l |> List.append r |> List.map (fun x -> x, x) |> AVLTree.ofItems
+
+    Assert.True(((AVLTree.merge lTree rTree) = lrTree))
 
 [<Property>]
 let ``Monoid associative`` (a: int list) (b: int list) (c: int list) =
@@ -117,14 +162,14 @@ let ``Monoid associative`` (a: int list) (b: int list) (c: int list) =
     let lhs = AVLTree.merge aTree (AVLTree.merge bTree cTree)
     let rhs = AVLTree.merge (AVLTree.merge aTree bTree) cTree
 
-    Assert.True(Seq.compareWith cmp lhs rhs = 0)
+    Assert.True((lhs = rhs))
 
 [<Property>]
 let ``Monoid neutral`` (l: int list) =
     let tree = List.zip l l |> AVLTree.ofItems
 
-    Assert.True(Seq.compareWith cmp tree (AVLTree.merge tree AVLTree.empty) = 0)
-    Assert.True(Seq.compareWith cmp tree (AVLTree.merge AVLTree.empty tree) = 0)
+    Assert.True((tree = (AVLTree.merge tree AVLTree.empty)))
+    Assert.True((tree = (AVLTree.merge AVLTree.empty tree)))
 
 [<Property>]
 let ``Tree fold`` (l: int list) =
@@ -136,13 +181,35 @@ let ``Tree fold`` (l: int list) =
     Assert.True((actual = expected))
 
 [<Property>]
+let ``Tree fold goes ascending`` (l: int list) =
+    let tree = List.zip l l |> AVLTree.ofItems
+
+    Assert.True(
+        tree
+        |> AVLTree.fold (fun l (k, v) -> List.append l [ (k, v) ]) []
+        |> Seq.pairwise
+        |> Seq.forall (fun ((k1, v1), (k2, v2)) -> k1 <= k2)
+    )
+
+[<Property>]
+let ``Tree foldBack goes descending`` (l: int list) =
+    let tree = List.zip l l |> AVLTree.ofItems
+
+    Assert.True(
+        tree
+        |> AVLTree.foldBack (fun l (k, v) -> List.append l [ (k, v) ]) []
+        |> Seq.pairwise
+        |> Seq.forall (fun ((k1, v1), (k2, v2)) -> k1 >= k2)
+    )
+
+[<Property>]
 let ``Tree map`` (l: int list) =
     let tree = List.zip l l |> AVLTree.ofItems
 
     let mappedTree = tree |> AVLTree.map (fun x -> x * x)
     let expectedTree = l |> List.map (fun x -> x * x) |> List.zip l |> AVLTree.ofItems
 
-    Assert.True(Seq.compareWith cmp mappedTree expectedTree = 0)
+    Assert.True((mappedTree = expectedTree))
 
 [<Property>]
 let ``Tree filter`` (l: int list) =
@@ -153,15 +220,16 @@ let ``Tree filter`` (l: int list) =
     let expectedTree =
         List.zip l l |> List.filter (fun (k, v) -> k % 2 = 0) |> AVLTree.ofItems
 
-    Assert.True(Seq.compareWith cmp filteredTree expectedTree = 0)
-
+    Assert.True((filteredTree = expectedTree))
 
 [<Property>]
-let ``Storage property`` (l: string list) =
-    let tree = l |> List.map (fun x -> x.GetHashCode()) |> List.zip l |> AVLTree.ofItems
+let ``Tree filter equals to removes`` (l: int list) =
+    let tree = List.zip l l |> AVLTree.ofItems
 
-    Assert.True(
-        l
-        |> Seq.map (fun k -> tree |> AVLTree.tryGet k = Some(k.GetHashCode()))
-        |> Seq.fold (&&) true
-    )
+    let filteredTree = tree |> AVLTree.filter (fun (k, v) -> k % 2 = 0)
+
+    let treeRemainder =
+        tree
+        |> AVLTree.fold (fun tree (k, v) -> if k % 2 = 0 then tree else tree |> AVLTree.remove k) tree
+
+    Assert.True((filteredTree = treeRemainder))
